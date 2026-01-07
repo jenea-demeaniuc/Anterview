@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full w-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InterviewPro | Event Horizon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs/loader.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --deep-space: #05050a;
+            --neon-cyan: #00f5ff;
+            --neon-pink: #ff4fd8;
+            --neon-lime: #c5ff00;
+            --neon-amber: #ffb01f;
+            --glass-border: rgba(255, 255, 255, 0.12);
+        }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: var(--deep-space);
+            color: #e2e8f0;
+            overflow: hidden;
+            cursor: crosshair; /* Sci-fi cursor */
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* --- CANVAS LAYERS --- */
+        #cyber-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1; opacity: 0.6; pointer-events: none;
+        }
+
+        /* --- GLASSMOPHISM --- */
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(8, 10, 18, 0.9), rgba(6, 8, 16, 0.6));
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--glass-border);
+            box-shadow:
+                0 0 0 1px rgba(0,0,0,1),
+                0 20px 60px -10px rgba(0,0,0,0.8),
+                0 0 40px rgba(0, 245, 255, 0.05);
+        }
+
+        /* --- INPUTS --- */
+        .sci-input {
+            width: 100%; background: rgba(255,255,255,0.03); 
+            border: 1px solid rgba(255,255,255,0.1); padding: 14px 16px;
+            border-radius: 8px; color: white; outline: none; transition: 0.2s;
+            font-family: 'Space Grotesk'; font-size: 15px;
+        }
+        .sci-input:focus {
+            background: rgba(255,255,255,0.06); border-color: var(--neon-cyan);
+            box-shadow: 0 0 0 4px rgba(0, 245, 255, 0.15);
+        }
+        .sci-label {
+            display: block; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; 
+            color: #64748b; margin-bottom: 6px; text-transform: uppercase;
+        }
+        select.sci-input { appearance: none; cursor: pointer; }
+        select.sci-input option { background: #0f172a; color: white; padding: 10px; }
+        .select-wrap { position: relative; }
+        .select-wrap::after {
+            content: ''; position: absolute; right: 16px; top: 40%; 
+            border: 4px solid transparent; border-top-color: #94a3b8; pointer-events: none;
+        }
+
+        /* --- BUTTONS --- */
+        .btn-glow {
+            background: linear-gradient(130deg, var(--neon-cyan), var(--neon-pink), var(--neon-amber));
+            color: #020205; font-weight: 800; letter-spacing: 2px;
+            border-radius: 10px; transition: 0.3s; text-transform: uppercase; font-size: 11px;
+            box-shadow: 0 0 25px rgba(0, 245, 255, 0.25), 0 0 35px rgba(255, 79, 216, 0.2);
+            position: relative; overflow: hidden;
+        }
+        .btn-glow::after {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.8), transparent);
+            transform: rotate(45deg) translate(-100%, -100%); transition: 0.5s;
+        }
+        .btn-glow:hover::after { transform: rotate(45deg) translate(100%, 100%); }
+        .btn-glow:hover {
+            transform: translateY(-1px) scale(1.01);
+            box-shadow: 0 0 35px rgba(0, 245, 255, 0.35), 0 0 45px rgba(255, 79, 216, 0.3);
+        }
+        .btn-icon {
+            display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+            border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 1px;
+            transition: all 0.2s; text-transform: uppercase; cursor: pointer; border: 1px solid transparent;
+            backdrop-filter: blur(10px);
+        }
+
+        .prism-text {
+            background: linear-gradient(120deg, var(--neon-cyan), var(--neon-amber), var(--neon-pink));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* --- CHAT BUBBLES --- */
+        .msg-anim { animation: flyIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; opacity: 0; transform: translateY(10px); }
+        @keyframes flyIn { to { opacity: 1; transform: translateY(0); } }
+
+        /* --- RESULTS --- */
+        .progress-ring { transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .progress-ring-circle { transition: stroke-dashoffset 2s ease-in-out; }
+        
+        #calc-overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 50;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: 0.3s;
+        }
+
+        .results-glow {
+            position: absolute; inset: -40%;
+            background: radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.25), transparent 45%),
+                        radial-gradient(circle at 80% 10%, rgba(6, 182, 212, 0.2), transparent 45%),
+                        radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.25), transparent 45%);
+            z-index: 0; filter: blur(40px); opacity: 0.7;
+        }
+
+        .neon-border { position: relative; z-index: 0; }
+        .neon-border::before {
+            content: ""; position: absolute; inset: -6px; border-radius: 22px;
+            background: linear-gradient(120deg, rgba(0, 245, 255, 0.45), rgba(255, 79, 216, 0.45), rgba(197, 255, 0, 0.35));
+            filter: blur(18px); opacity: 0.8; z-index: -1;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen w-screen selection:bg-cyan-500/30">
+
+    <canvas id="cyber-canvas"></canvas>
+
+    <section id="setup" class="w-full max-w-[480px] glass-panel neon-border rounded-2xl p-10 z-20 relative">
+        <div class="mb-8 border-l-2 border-cyan-500 pl-4">
+            <h1 class="text-3xl font-bold prism-text tracking-tight">Anterview</h1>
+            <p class="text-[10px] text-amber-300 font-mono tracking-widest mt-1">INTERVIEW SIMULATION PROTOCOL</p>
+        </div>
+
+        <div class="space-y-5">
+            <div>
+                <label class="sci-label">Target Role</label>
+                <input id="job-title" type="text" placeholder="e.g. Senior Backend Engineer" class="sci-input">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="sci-label">Persona</label>
+                    <div class="select-wrap">
+                        <select id="persona" class="sci-input">
+                            <option value="Herman (Strict Architect)">Herman (Strict)</option>
+                            <option value="Sarah (CTO)">Sarah (CTO)</option>
+                            <option value="AI-7 (Pure Logic)">AI-7 (Logic)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="sci-label">Stack</label>
+                    <div class="select-wrap">
+                        <select id="language" class="sci-input">
+                            <option value="python">Python</option>
+                            <option value="javascript">JavaScript</option>
+                            <option value="go">Go</option>
+                            <option value="java">Java</option>
+                            <option value="cpp">C++</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="sci-label">Interview Depth (Questions)</label>
+                <div class="select-wrap">
+                    <select id="q-limit" class="sci-input">
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="bootSequence()" class="btn-glow w-full h-12 mt-4">
+                Initialize System
+            </button>
+        </div>
+    </section>
+
+    <main id="interface" class="fixed inset-0 flex p-4 gap-4 opacity-0 pointer-events-none hidden">
+        <div class="absolute top-4 right-4 z-50 flex gap-3">
+            <button onclick="endInterview()" class="btn-icon bg-red-900/20 text-red-400 border-red-500/20 hover:bg-red-500 hover:text-white">
+                <span class="w-1.5 h-1.5 rounded-full bg-current mr-1 animate-pulse"></span> Force Terminate
+            </button>
+        </div>
+        <div class="absolute top-4 left-4 z-50 px-4 py-2 bg-black/40 border border-white/10 rounded-full backdrop-blur-md">
+            <span class="text-[10px] text-slate-400 font-bold tracking-widest">PROGRESS: <span id="q-tracker" class="text-lime-300">0/0</span></span>
+        </div>
+        <div id="chat-panel" class="w-full h-full glass-panel rounded-2xl flex flex-col relative overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.76,0,0.24,1)]">
+            <div id="chat-scroll" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth"></div>
+            <button id="code-trigger" onclick="requestCodingChallenge()" class="absolute bottom-24 left-8 z-20 btn-icon bg-emerald-900/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-400 hover:text-black hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                Launch Compiler
+            </button>
+            <div class="p-4 border-t border-white/5 bg-black/20 backdrop-blur-md">
+                <div class="relative group">
+                    <input id="user-input" type="text" placeholder="Type your response..." class="w-full bg-white/5 border border-white/10 rounded-lg p-3.5 pr-12 text-sm text-white placeholder:text-slate-500 focus:border-cyan-500/40 focus:bg-white/10 transition-all outline-none" autocomplete="off" onkeypress="if(event.key==='Enter') send()">
+                    <div id="ai-loading" class="absolute right-3 top-3.5 text-[10px] text-lime-300 font-mono opacity-0 tracking-widest bg-black/50 px-2 rounded">PROCESSING</div>
+                </div>
+            </div>
+        </div>
+        <div id="code-panel" class="w-0 h-full glass-panel rounded-2xl flex flex-col relative overflow-hidden opacity-0 border-l border-white/10">
+            <div class="h-12 border-b border-white/10 flex items-center justify-between px-4 bg-black/20">
+                <div class="flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+                    <span class="text-[10px] mono text-slate-400 tracking-widest">ENV: <span id="lang-display" class="text-white font-bold">PYTHON</span></span>
+                </div>
+                <button onclick="submitCode()" class="btn-icon bg-indigo-500/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500 hover:text-white">Run & Submit</button>
+            </div>
+            <div id="editor-container" class="flex-1 opacity-0 transition duration-500"></div>
+        </div>
+    </main>
+
+    <section id="results" class="fixed inset-0 z-[60] flex items-center justify-center p-6 opacity-0 pointer-events-none bg-black/90 backdrop-blur-xl transition-opacity duration-700">
+        <div class="w-full max-w-3xl glass-panel neon-border rounded-2xl p-10 transform scale-95 transition-transform duration-700 relative overflow-hidden" id="results-card">
+            <div class="results-glow"></div>
+            <div id="calc-overlay">
+                <div class="text-cyan-400 font-mono text-xs tracking-widest animate-pulse mb-2">ANALYZING TRANSCRIPT DATA...</div>
+                <div class="w-64 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div class="h-full bg-cyan-500 animate-[pulse_1s_infinite] w-1/2 mx-auto"></div>
+                </div>
+            </div>
+            <div class="relative z-10 flex justify-between items-start mb-8 pb-6 border-b border-white/10">
+                <div>
+                    <h2 class="text-2xl font-bold prism-text">Assessment Log</h2>
+                    <p class="text-xs text-slate-500 mono mt-1">SESSION ID: <span class="text-slate-300">EH-9021</span></p>
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] font-bold text-slate-500 tracking-widest mb-1">RECOMMENDATION</div>
+                    <div id="verdict-text" class="text-3xl font-bold text-white">PENDING</div>
+                </div>
+            </div>
+            <div class="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="flex items-center justify-center">
+                    <div class="relative w-40 h-40">
+                        <svg class="w-full h-full" viewBox="0 0 100 100">
+                            <circle class="text-white/5 stroke-current" stroke-width="8" cx="50" cy="50" r="40" fill="transparent"></circle>
+                            <circle id="score-ring" class="text-emerald-400 progress-ring-circle stroke-current" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="40" fill="transparent" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span id="score-val" class="text-4xl font-bold text-white">--</span>
+                            <span class="text-[9px] text-slate-400 tracking-widest mt-1">SCORE</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:col-span-2 space-y-5">
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-[10px] font-bold text-slate-400 tracking-wider"><span>TECHNICAL ACCURACY</span><span id="s1">0%</span></div>
+                        <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div id="b1" class="h-full bg-gradient-to-r from-emerald-300 via-cyan-400 to-blue-400 w-0 transition-all duration-1000"></div>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white/5 rounded-lg border border-white/5">
+                        <p id="ai-summary" class="text-xs text-slate-300 leading-relaxed italic opacity-80">Waiting for neural evaluation...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="relative z-10 mt-8 flex justify-end">
+                <button onclick="location.reload()" class="btn-glow px-6 py-3">Reset Simulation</button>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // --- 1. VISUAL FX ENGINE (The Cool Stuff) ---
+        const canvas = document.getElementById('cyber-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let particles = [];
+        let mouse = { x: -1000, y: -1000 };
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initParticles();
+        }
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 0.5; // Slow drift X
+                this.vy = (Math.random() - 0.5) * 0.5; // Slow drift Y
+                this.size = Math.random() * 2;
+                this.color = Math.random() > 0.5 ? '#00f5ff' : '#ff4fd8'; // Cyan or Pink
+                this.alpha = Math.random() * 0.5 + 0.1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.alpha;
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            const count = (width * height) / 10000; // Density
+            for (let i = 0; i < count; i++) particles.push(new Particle());
+        }
+
+        function animateCanvas() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // 1. Draw "Cyber Gradient" Background
+            const gradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width);
+            gradient.addColorStop(0, '#0a0a15');
+            gradient.addColorStop(1, '#000000');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0,0,width,height);
+
+            // 2. Mouse "Flashlight" Glow
+            if(mouse.x > 0) {
+                const glow = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 250);
+                glow.addColorStop(0, 'rgba(0, 245, 255, 0.08)');
+                glow.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(mouse.x, mouse.y, 250, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // 3. Particles & Connections
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+
+                // Connect to mouse (The Reaction)
+                const dx = mouse.x - p.x;
+                const dy = mouse.y - p.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 150) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(mouse.x, mouse.y);
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = 0.5;
+                    ctx.globalAlpha = 1 - (dist / 150);
+                    ctx.stroke();
+                }
+            });
+            requestAnimationFrame(animateCanvas);
+        }
+
+        window.addEventListener('resize', resize);
+        window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+        resize();
+        animateCanvas();
+
+        // --- 2. CORE LOGIC (Shippable Version) ---
+        let editor, history = [], isCodeMode = false, selectedLang = 'python';
+        let currentQ = 0, maxQ = 5, isEnding = false, lastPromptAt = null, pendingCodeRequest = false;
+        const sessionMetrics = { responses: 0, totalChars: 0, totalResponseTime: 0, questionsAsked: 0, questionsAnswered: 0, codeUsed: false, codeSubmits: 0, reasoningHits: 0 };
+
+        window.onload = () => {
+            const sel = document.getElementById('q-limit');
+            for(let i=2; i<=20; i++) {
+                let opt = document.createElement('option');
+                opt.value = i;
+                opt.innerText = i + " Questions";
+                if(i===5) opt.selected = true;
+                sel.appendChild(opt);
+            }
+            resize(); // Init canvas
+        };
+
+        function bootSequence() {
+            const job = document.getElementById('job-title').value || "Engineer";
+            selectedLang = document.getElementById('language').value;
+            const persona = document.getElementById('persona').value;
+            maxQ = parseInt(document.getElementById('q-limit').value);
+
+            gsap.to("#setup", { 
+                scale: 0.95, opacity: 0, filter: "blur(10px)", duration: 0.6, ease: "power2.in",
+                onComplete: () => {
+                    document.getElementById('setup').style.display = 'none';
+                    initInterface(job, persona, selectedLang);
+                }
+            });
+        }
+
+        function initInterface(job, persona, lang) {
+            const ui = document.getElementById('interface');
+            ui.classList.remove('hidden', 'pointer-events-none');
+            document.getElementById('lang-display').innerText = lang.toUpperCase();
+            updateTracker(1); 
+            gsap.to(ui, { opacity: 1, duration: 0.5 });
+            gsap.from("#chat-panel", { y: 30, opacity: 0, duration: 0.8, ease: "power3.out" });
+
+            const sys = `
+                You are ${persona}. You are interviewing a candidate for a ${job} role.
+                Language: ${lang}.
+                PROTOCOL:
+                1. You are a strict INTERVIEWER. NOT a teacher.
+                2. If user is wrong, say "Noted" and move on.
+                3. Keep responses SHORT.
+                4. Ask exactly ONE question at a time.
+                5. If you decide a coding challenge is needed, provide it immediately using:
+                   <CODE_START>...starter code and problem...</CODE_END>
+                6. If you see [SYSTEM: END], say a brief goodbye and stop asking questions.
+            `;
+            
+            history.push({role: "system", content: sys});
+            setTimeout(() => callAI("Start the interview immediately with the first question."), 500);
+        }
+
+        function updateTracker(q) {
+            currentQ = q;
+            document.getElementById('q-tracker').innerText = `${Math.min(currentQ, maxQ)}/${maxQ}`;
+        }
+
+        async function send() {
+            const input = document.getElementById('user-input');
+            const msg = input.value;
+            if(!msg) return;
+
+            addMessage("CANDIDATE", msg);
+            input.value = "";
+            input.disabled = true;
+            input.placeholder = "WAITING FOR INTERVIEWER...";
+            
+            sessionMetrics.responses += 1;
+            sessionMetrics.totalChars += msg.length;
+            if (lastPromptAt) sessionMetrics.totalResponseTime += (Date.now() - lastPromptAt);
+            if (/\b(because|therefore|tradeoff|complexity|approach|assume|edge case|optimize)\b/i.test(msg)) sessionMetrics.reasoningHits += 1;
+            sessionMetrics.questionsAnswered = Math.min(maxQ, sessionMetrics.responses);
+
+            let prompt = msg;
+            if (currentQ >= maxQ) {
+                isEnding = true;
+                prompt += " [SYSTEM: This was the final answer. Thank the candidate briefly and conclude the session. Do NOT ask another question.]";
+            } else {
+                updateTracker(currentQ + 1);
+            }
+            callAI(prompt);
+        }
+
+        function requestCodingChallenge() {
+            if(isCodeMode) return;
+            addMessage("SYSTEM", "Requesting coding environment initialization...");
+            callAI("I am ready for a coding challenge. Please give me a problem and starter code inside <CODE_START> tags.");
+        }
+
+        async function submitCode() {
+            const code = editor.getValue();
+            addMessage("SYSTEM", "Submitting solution to compiler...");
+            callAI(`Here is my solution code:\n${code}\n\nAssess it.`);
+            sessionMetrics.codeSubmits += 1;
+        }
+
+        async function callAI(prompt) {
+            const loading = document.getElementById('ai-loading');
+            const input = document.getElementById('user-input');
+            loading.style.opacity = "1";
+
+            try {
+                // Using the SECURE PROXY
+                const res = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ messages: [...history, {role: "user", content: prompt}] })
+                });
+
+                const data = await res.json();
+                loading.style.opacity = "0";
+                
+                if(!isEnding) {
+                    input.disabled = false; input.placeholder = "Type your response..."; input.focus();
+                } else {
+                    input.placeholder = "INTERVIEW CONCLUDED.";
+                }
+
+                let content = data.choices[0].message.content;
+                const codeRegex = /<CODE_START>([\s\S]*?)<CODE_END>/;
+                const match = content.match(codeRegex);
+                if (match) {
+                    const codeContent = match[1].trim();
+                    content = content.replace(codeRegex, "[Opening Code Editor...]");
+                    if(!isCodeMode) activateCodeMode();
+                    setTimeout(() => { editor.setValue(codeContent); }, 1000);
+                }
+
+                streamText(content);
+                history.push({role: "assistant", content: content});
+
+                if (!match && !isCodeMode && !pendingCodeRequest && /coding challenge|code challenge|coding exercise/i.test(content)) {
+                    pendingCodeRequest = true;
+                    setTimeout(() => { pendingCodeRequest = false; requestCodingChallenge(); }, 600);
+                }
+                if(isEnding) setTimeout(endInterview, 3500);
+
+            } catch (e) { console.error(e); loading.style.opacity = "0"; input.disabled = false; }
+        }
+
+        function activateCodeMode() {
+            if(isCodeMode) return; isCodeMode = true;
+            sessionMetrics.codeUsed = true;
+            gsap.to("#code-trigger", { opacity: 0, scale: 0, duration: 0.3 });
+            const tl = gsap.timeline();
+            tl.to("#chat-panel", { width: "40%", duration: 0.8, ease: "power3.inOut" });
+            tl.to("#code-panel", { width: "60%", opacity: 1, duration: 0.8, ease: "power3.inOut" }, "<");
+            tl.call(initMonaco);
+            tl.to("#editor-container", { opacity: 1, duration: 0.4 });
+        }
+
+        function initMonaco() {
+            require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' } });
+            require(['vs/editor/editor.main'], function () {
+                editor = monaco.editor.create(document.getElementById('editor-container'), {
+                    value: "# Waiting for input...",
+                    language: selectedLang === 'cpp' ? 'cpp' : selectedLang,
+                    theme: 'vs-dark', fontFamily: 'JetBrains Mono', fontSize: 13,
+                    minimap: { enabled: false }, automaticLayout: true, padding: { top: 20 },
+                    lineNumbers: "on", scrollBeyondLastLine: false
+                });
+                monaco.editor.defineTheme('event-horizon', {
+                    base: 'vs-dark', inherit: true, rules: [{ background: '00000000' }], colors: { 'editor.background': '#00000000' }
+                });
+                monaco.editor.setTheme('event-horizon');
+            });
+        }
+
+        function addMessage(role, text) {
+            const container = document.getElementById('chat-scroll');
+            const div = document.createElement('div');
+            const isUser = role === "CANDIDATE";
+            div.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} msg-anim`;
+            const bubbleColor = isUser ? "bg-indigo-600 text-white" : "bg-white/5 text-slate-200 border border-white/10";
+            div.innerHTML = `<div class="max-w-[85%] ${bubbleColor} rounded-2xl p-4 text-sm relative shadow-lg">
+                <span class="text-[9px] font-bold opacity-50 block mb-1 tracking-widest uppercase">${role}</span>
+                <div class="leading-relaxed">${text}</div>
+            </div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function streamText(text) {
+            const container = document.getElementById('chat-scroll');
+            const div = document.createElement('div');
+            div.className = "flex w-full justify-start msg-anim";
+            div.innerHTML = `<div class="max-w-[85%] bg-white/5 text-slate-200 border border-white/10 rounded-2xl p-4 relative shadow-lg">
+                <span class="text-[9px] font-bold opacity-50 block mb-1 tracking-widest text-cyan-400">INTERVIEWER</span>
+                <div class="text-sm leading-relaxed mono"><span id="stream-target"></span><span class="animate-pulse inline-block w-1.5 h-3 bg-cyan-400 ml-1"></span></div>
+            </div>`;
+            container.appendChild(div);
+            const target = div.querySelector('#stream-target');
+            let i = 0;
+            function type() {
+                if (i < text.length) { target.innerHTML += text.charAt(i); i++; container.scrollTop = container.scrollHeight; requestAnimationFrame(type); } 
+                else { div.querySelector('.animate-pulse').remove(); lastPromptAt = Date.now(); if (text.includes("?")) sessionMetrics.questionsAsked += 1; }
+            } type();
+        }
+
+        function endInterview() {
+            gsap.to("#interface", {
+                opacity: 0, scale: 0.95, filter: "blur(10px)", duration: 0.6, ease: "power2.in",
+                onComplete: () => {
+                    document.getElementById('interface').style.display = 'none';
+                    const res = document.getElementById('results');
+                    const card = document.getElementById('results-card');
+                    res.classList.remove('pointer-events-none');
+                    gsap.to(res, { opacity: 1, duration: 0.5 });
+                    gsap.to(card, { scale: 1, duration: 0.6, ease: "back.out(1.5)" });
+                    evaluatePerformance();
+                }
+            });
+        }
+
+        async function evaluatePerformance() {
+            const overlay = document.getElementById('calc-overlay');
+            overlay.style.opacity = "1"; overlay.style.pointerEvents = "all";
+
+            try {
+                // Using the SECURE PROXY
+                const res = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        messages: [
+                            ...history, 
+                            { role: "system", content: `INTERVIEW COMPLETE. EVALUATE NOW. Return ONLY JSON: { "score": (0-100), "technical": (0-100), "verdict": "HIRE" or "NO HIRE", "summary": "Short 2 sentence feedback." }` }
+                        ] 
+                    })
+                });
+                
+                const data = await res.json();
+                let text = data.choices[0].message.content.replace(/```json/g, "").replace(/```/g, "").trim();
+                const apiStats = JSON.parse(text);
+                const stats = blendStats(apiStats, calculateLocalStats());
+                
+                overlay.style.opacity = "0"; overlay.style.pointerEvents = "none";
+                displayResults(stats);
+
+            } catch (e) {
+                console.error(e);
+                const stats = calculateLocalStats();
+                overlay.style.opacity = "0"; overlay.style.pointerEvents = "none";
+                displayResults(stats);
+            }
+        }
+
+        function normalizeStats(stats) {
+            const safe = (val) => Math.max(0, Math.min(100, Math.round(val || 0)));
+            const technical = safe(stats.technical);
+            const score = safe(stats.score !== undefined ? stats.score : technical);
+            return { score, technical, verdict: stats.verdict === "HIRE" ? "HIRE" : "NO HIRE", summary: stats.summary || "Performance logged." };
+        }
+
+        function calculateLocalStats() {
+            const avgChars = sessionMetrics.responses ? sessionMetrics.totalChars / sessionMetrics.responses : 0;
+            const avgResponseTime = sessionMetrics.responses ? sessionMetrics.totalResponseTime / sessionMetrics.responses : 0;
+            const reasoning = Math.min(100, Math.round((sessionMetrics.reasoningHits / Math.max(1, sessionMetrics.responses)) * 100 + 40));
+            const technical = Math.min(100, Math.round(50 + (sessionMetrics.codeUsed ? 20 : 0) + (sessionMetrics.codeSubmits ? 10 : 0) + (reasoning * 0.3)));
+            let score = technical;
+            if (sessionMetrics.responses >= maxQ && avgChars >= 30 && avgResponseTime > 0) score = Math.max(score, 60);
+            return normalizeStats({ score, technical, verdict: score >= 72 ? "HIRE" : "NO HIRE", summary: "Technical accuracy logged." });
+        }
+
+        function blendStats(apiStats, localStats) {
+            const api = normalizeStats(apiStats);
+            const local = normalizeStats(localStats);
+            const apiReliable = api.score >= 30;
+            const weight = apiReliable ? 0.7 : 0.2;
+            const blend = (a, b) => Math.round((a * weight) + (b * (1 - weight)));
+            const technical = blend(api.technical, local.technical);
+            return normalizeStats({ score: technical, technical, verdict: technical >= 72 ? "HIRE" : "NO HIRE", summary: api.summary || local.summary });
+        }
+
+        function displayResults(stats) {
+            const isHire = stats.verdict === "HIRE";
+            const color = isHire ? "text-emerald-400" : "text-rose-400";
+            document.getElementById('verdict-text').innerText = stats.verdict;
+            document.getElementById('verdict-text').className = `text-3xl font-bold ${color} shadow-lg`;
+            document.getElementById('ai-summary').innerText = stats.summary;
+            const circle = document.getElementById('score-ring');
+            const circumference = circle.r.baseVal.value * 2 * Math.PI;
+            circle.style.strokeDashoffset = circumference - (stats.score / 100) * circumference;
+            let obj = { val: 0 };
+            gsap.to(obj, { val: stats.score, duration: 2, ease: "power2.out", onUpdate: () => { document.getElementById('score-val').innerText = Math.round(obj.val) + "%"; } });
+            document.getElementById('s1').innerText = stats.technical + "%";
+            gsap.to("#b1", { width: `${stats.technical}%` });
+        }
+    </script>
+</body>
+</html>
